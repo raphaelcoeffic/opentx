@@ -390,6 +390,10 @@ void ModulePanel::update()
       case PULSES_PXX_XJT_LR12:
       case PULSES_PXX_DJT:
         mask |= MASK_CHANNELS_RANGE | MASK_CHANNELS_COUNT;
+        if (protocol==PULSES_XJT_LITE_LR12 || protocol==PULSES_PXX_XJT_LR12)
+          module.channelsCount = 12;
+        else
+          module.channelsCount = 16;
         // ACCST Rx ID
         if (protocol==PULSES_PXX_XJT_X16 || protocol==PULSES_PXX_XJT_LR12 ||
             protocol==PULSES_PXX_R9M || protocol==PULSES_ACCST_ISRM_D16 ||
@@ -397,8 +401,10 @@ void ModulePanel::update()
           mask |= MASK_RX_NUMBER;
         // ACCESS
         else if (protocol==PULSES_ACCESS_ISRM || protocol==PULSES_ACCESS_R9M ||
-                 protocol==PULSES_ACCESS_R9M_LITE || protocol==PULSES_ACCESS_R9M_LITE_PRO)
+                 protocol==PULSES_ACCESS_R9M_LITE || protocol==PULSES_ACCESS_R9M_LITE_PRO) {
           mask |= MASK_RX_NUMBER | MASK_ACCESS;
+          module.channelsCount = 24;
+        }
         if (moduleIdx == 0 && HAS_EXTERNAL_ANTENNA(board) && generalSettings.antennaMode == 0 /* per model */)
           mask |= MASK_ANTENNA;
         break;
@@ -613,7 +619,7 @@ void ModulePanel::update()
 
   if (mask & MASK_CHANNELS_RANGE) {
     ui->channelsStart->setMaximum(33 - ui->channelsCount->value());
-    ui->channelsCount->setMaximum(qMin(24, 33-ui->channelsStart->value()));
+    ui->channelsCount->setMaximum(qMin(ui->channelsCount->value(), 33-ui->channelsStart->value()));
   }
 }
 
@@ -628,9 +634,10 @@ void ModulePanel::on_trainerMode_currentIndexChanged(int index)
 
 void ModulePanel::onProtocolChanged(int index)
 {
-  if (!lock && module.protocol != ui->protocol->itemData(index).toUInt()) {
+  if (module.protocol != ui->protocol->itemData(index).toUInt()) {
     module.protocol = ui->protocol->itemData(index).toInt();
     update();
+    emit channelsRangeChanged();
     emit modified();
   }
 }
