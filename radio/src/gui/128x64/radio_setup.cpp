@@ -52,7 +52,6 @@ enum {
   CASE_BATTGRAPH(ITEM_RADIO_SETUP_BATT_RANGE)
   ITEM_RADIO_SETUP_SOUND_LABEL,
   CASE_AUDIO(ITEM_RADIO_SETUP_BEEP_MODE)
-  CASE_BUZZER(ITEM_RADIO_SETUP_BUZZER_MODE)
   ITEM_RADIO_SETUP_SPEAKER_VOLUME,
   ITEM_RADIO_SETUP_BEEP_VOLUME,
   ITEM_RADIO_SETUP_BEEP_LENGTH,
@@ -137,7 +136,6 @@ void menuRadioSetup(event_t event)
   MENU(STR_MENURADIOSETUP, menuTabGeneral, MENU_RADIO_SETUP, HEADER_LINE+ITEM_RADIO_SETUP_MAX, {
     HEADER_LINE_COLUMNS CASE_RTCLOCK(2) CASE_RTCLOCK(2) CASE_BATTGRAPH(1)
     LABEL(SOUND), CASE_AUDIO(0)
-    CASE_BUZZER(0)
     0, 0, 0, 0, 0, CASE_AUDIO(0)
     CASE_VARIO(LABEL(VARIO))
     CASE_VARIO(0)
@@ -267,15 +265,6 @@ void menuRadioSetup(event_t event)
         g_eeGeneral.beepMode = editChoice(RADIO_SETUP_2ND_COLUMN, y, STR_SPEAKER, STR_VBEEPMODE, g_eeGeneral.beepMode, -2, 1, attr, event);
         break;
 
-#if defined(BUZZER) // AUDIO + BUZZER
-      case ITEM_RADIO_SETUP_BUZZER_MODE:
-        g_eeGeneral.buzzerMode = editChoice(RADIO_SETUP_2ND_COLUMN, y, STR_BUZZER, STR_VBEEPMODE, g_eeGeneral.buzzerMode, -2, 1, attr, event);
-        break;
-#endif
-#elif defined(BUZZER) // BUZZER only
-      case ITEM_RADIO_SETUP_BUZZER_MODE:
-        g_eeGeneral.beepMode = editChoice(RADIO_SETUP_2ND_COLUMN, y, STR_SPEAKER, STR_VBEEPMODE, g_eeGeneral.beepMode, -2, 1, attr, event);
-        break;
 #endif
 
 #if defined(VOICE)

@@ -84,12 +84,6 @@
   #define CASE_RTCLOCK(x)
 #endif
 
-#if defined(BUZZER)
-  #define CASE_BUZZER(x) x,
-#else
-  #define CASE_BUZZER(x)
-#endif
-
 #if defined(AUDIO)
   #define CASE_AUDIO(x) x,
 #else
@@ -1303,11 +1297,7 @@ constexpr uint32_t EARTH_RADIUS = 6371009;
 
 void varioWakeup();
 
-#if defined(AUDIO) && defined(BUZZER)
-  #define IS_SOUND_OFF() (g_eeGeneral.buzzerMode==e_mode_quiet && g_eeGeneral.beepMode==e_mode_quiet)
-#else
   #define IS_SOUND_OFF() (g_eeGeneral.beepMode == e_mode_quiet)
-#endif
 
 #define IS_IMPERIAL_ENABLE() (g_eeGeneral.imperial)
 

@@ -540,16 +540,9 @@ void audioPlay(unsigned int index, uint8_t id=0);
 void audioStart();
 void audioTask(void * pdata);
 
-#if defined(AUDIO) && defined(BUZZER)
-  #define AUDIO_BUZZER(a, b)  do { a; b; } while(0)
-#elif defined(AUDIO)
-  #define AUDIO_BUZZER(a, b)  a
-#else
-  #define AUDIO_BUZZER(a, b)  b
-#endif
-
-  #define AUDIO_ERROR_MESSAGE(e) audioEvent(e)
-  #define AUDIO_TIMER_MINUTE(t)  playDuration(t, 0, 0)
+#define AUDIO_BUZZER(a, b)  b
+#define AUDIO_ERROR_MESSAGE(e) audioEvent(e)
+#define AUDIO_TIMER_MINUTE(t)  playDuration(t, 0, 0)
 
 void audioKeyPress();
 void audioKeyError();

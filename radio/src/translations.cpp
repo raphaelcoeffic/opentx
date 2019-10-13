@@ -600,10 +600,6 @@ const char STR_ELEVATOR[] = TR_ELEVATOR;
 const char STR_SWASHRING[] = TR_SWASHRING;
 #endif
 
-#if defined(AUDIO) && defined(BUZZER)
-const char STR_SPEAKER[] = TR_SPEAKER;
-const char STR_BUZZER[] = TR_BUZZER;
-#endif
 
 #if defined(AUDIO)
 const char STR_SPKRPITCH[] = TR_SPKRPITCH;
