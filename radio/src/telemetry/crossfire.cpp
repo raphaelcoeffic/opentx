@@ -199,7 +199,7 @@ void processCrossfireTelemetryFrame()
           offset /= 10;
 
           TRACE("[XF] Rate: %d, Lag: %d", update_interval, offset);
-          getModuleSyncStatus(EXTERNAL_MODULE).update(update_interval, offset + SAFE_SYNC_LAG);
+          getModuleSyncStatus(EXTERNAL_MODULE).update(update_interval, offset);
         }
       }
       break;
