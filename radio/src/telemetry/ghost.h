@@ -108,6 +108,6 @@ enum GhostTelemetryBaudrates
 };
 #endif
 #define GHOST_BAUDRATE       400000
-#define GHOST_PERIOD         4
+#define GHOST_PERIOD         4000 /* us */
 
 #endif // _GHOST_H_
