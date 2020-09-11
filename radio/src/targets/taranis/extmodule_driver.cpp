@@ -128,6 +128,9 @@ void extmoduleSerialStart()
   TIM_CtrlPWMOutputs(EXTMODULE_TIMER, ENABLE);
   TIM_DMACmd(EXTMODULE_TIMER, TIM_DMA_Update, ENABLE);
 
+  // re-enable timer
+  TIM_Cmd(EXTMODULE_TIMER, ENABLE);
+
   NVIC_EnableIRQ(EXTMODULE_TIMER_DMA_STREAM_IRQn);
   NVIC_SetPriority(EXTMODULE_TIMER_DMA_STREAM_IRQn, 7);
 }
@@ -174,6 +177,7 @@ void extmoduleSendBuffer(const uint8_t * data, uint8_t size)
 {
   DMA_InitTypeDef DMA_InitStructure;
   DMA_DeInit(EXTMODULE_USART_TX_DMA_STREAM);
+
   DMA_InitStructure.DMA_Channel = EXTMODULE_USART_TX_DMA_CHANNEL;
   DMA_InitStructure.DMA_PeripheralBaseAddr = CONVERT_PTR_UINT(&EXTMODULE_USART->DR);
   DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
@@ -189,6 +193,7 @@ void extmoduleSendBuffer(const uint8_t * data, uint8_t size)
   DMA_InitStructure.DMA_FIFOThreshold = DMA_FIFOThreshold_Full;
   DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
   DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+
   DMA_Init(EXTMODULE_USART_TX_DMA_STREAM, &DMA_InitStructure);
   DMA_Cmd(EXTMODULE_USART_TX_DMA_STREAM, ENABLE);
   USART_DMACmd(EXTMODULE_USART, USART_DMAReq_Tx, ENABLE);
@@ -291,25 +296,45 @@ void extmoduleSendNextFrame()
       break;
 
 #if defined(PXX1)
-    case PROTOCOL_CHANNELS_PXX1_PULSES:
+    case PROTOCOL_CHANNELS_PXX1_PULSES: {
 
       if (EXTMODULE_TIMER_DMA_STREAM->CR & DMA_SxCR_EN)
         return;
 
-      // disable timer
-      EXTMODULE_TIMER->CR1 &= ~TIM_CR1_CEN;
+      // disable timer & DMA
+      TIM_Cmd(EXTMODULE_TIMER, DISABLE);
+      DMA_Cmd(EXTMODULE_TIMER_DMA_STREAM, DISABLE);
 
-      EXTMODULE_TIMER_DMA_STREAM->CR &= ~DMA_SxCR_EN; // Disable DMA
-      EXTMODULE_TIMER_DMA_STREAM->CR |= EXTMODULE_TIMER_DMA_CHANNEL | DMA_SxCR_DIR_0 | DMA_SxCR_MINC | DMA_SxCR_PSIZE_0 | DMA_SxCR_MSIZE_0 | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
-      EXTMODULE_TIMER_DMA_STREAM->PAR = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
-      EXTMODULE_TIMER_DMA_STREAM->M0AR = CONVERT_PTR_UINT(extmodulePulsesData.pxx.getData());
-      EXTMODULE_TIMER_DMA_STREAM->NDTR = extmodulePulsesData.pxx.getSize();
-      EXTMODULE_TIMER_DMA_STREAM->CR |= DMA_SxCR_EN | DMA_SxCR_TCIE; // Enable DMA
+      DMA_InitTypeDef DMA_InitStructure;
+      DMA_InitStructure.DMA_Channel = EXTMODULE_TIMER_DMA_CHANNEL;
+
+      DMA_InitStructure.DMA_PeripheralBaseAddr = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
+      DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
+      DMA_InitStructure.DMA_Memory0BaseAddr =
+        CONVERT_PTR_UINT(extmodulePulsesData.pxx.getData());
+      DMA_InitStructure.DMA_BufferSize = extmodulePulsesData.pxx.getSize();
+
+      DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+      DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+      DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+      DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+      DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+      DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
+      DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;
+      DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+      DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+      
+      DMA_Init(EXTMODULE_TIMER_DMA_STREAM, &DMA_InitStructure);
+
+      // start DMA request
+      DMA_ITConfig(EXTMODULE_TIMER_DMA_STREAM, DMA_IT_TC, ENABLE);
+      DMA_Cmd(EXTMODULE_TIMER_DMA_STREAM, ENABLE);
 
       // re-init timer
-      EXTMODULE_TIMER->EGR = 1;
-      EXTMODULE_TIMER->CR1 |= TIM_CR1_CEN;
+      EXTMODULE_TIMER->EGR = TIM_PSCReloadMode_Immediate;
+      TIM_Cmd(EXTMODULE_TIMER, ENABLE);
       break;
+    }
 #endif
 
 #if defined(PXX1) && defined(HARDWARE_EXTERNAL_MODULE_SIZE_SML)
