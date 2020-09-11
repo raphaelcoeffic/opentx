@@ -112,7 +112,7 @@ void extmoduleSerialStart()
   TIM_OCStructInit(&TIM_OCInitStruct);
 
   TIM_OCInitStruct.TIM_Pulse = 0; // whatever, will be replaced by DMA data...
-  TIM_OCInitStruct.TIM_OCMode = TIM_ForcedAction_InActive;
+  TIM_OCInitStruct.TIM_OCMode = TIM_ForcedAction_Active;
 
   // depends on EXTMODULE_TIMER_OUTPUT_ENABLE & EXTMODULE_TIMER_OUTPUT_POLARITY:
   //
@@ -309,8 +309,8 @@ void extmoduleSendNextFrame()
         return;
 
       // disable timer & DMA
+      DMA_DeInit(EXTMODULE_TIMER_DMA_STREAM);
       TIM_Cmd(EXTMODULE_TIMER, DISABLE);
-      DMA_Cmd(EXTMODULE_TIMER_DMA_STREAM, DISABLE);
 
       DMA_InitTypeDef DMA_InitStructure;
       DMA_InitStructure.DMA_Channel = EXTMODULE_TIMER_DMA_CHANNEL;
@@ -381,36 +381,69 @@ void extmoduleSendNextFrame()
     case PROTOCOL_CHANNELS_DSM2_LP45:
     case PROTOCOL_CHANNELS_DSM2_DSM2:
     case PROTOCOL_CHANNELS_DSM2_DSMX:
-    case PROTOCOL_CHANNELS_MULTIMODULE:
+    case PROTOCOL_CHANNELS_MULTIMODULE: {
 
       if (EXTMODULE_TIMER_DMA_STREAM->CR & DMA_SxCR_EN)
         return;
 
+      // disable DMA
+      DMA_DeInit(EXTMODULE_TIMER_DMA_STREAM);
+      // EXTMODULE_TIMER_DMA_STREAM->CR &= ~DMA_SxCR_EN;
+      
       // disable timer
-      EXTMODULE_TIMER->CR1 &= ~TIM_CR1_CEN;
+      TIM_Cmd(EXTMODULE_TIMER, DISABLE);
+      // EXTMODULE_TIMER->CR1 &= ~TIM_CR1_CEN;
 
       if (PROTOCOL_CHANNELS_SBUS == moduleState[EXTERNAL_MODULE].protocol) {
-        EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0); // reverse polarity for Sbus if needed
+        EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE
+          // reverse polarity for Sbus if needed:
+          | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0);
       }
 
-      // force specific output before DMA toggling
-      //EXTMODULE_TIMER->CCMR1 = TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_0; // Force O/P high
-      EXTMODULE_TIMER->CCMR1 = TIM_CCMR1_OC1M_2;                    // Force O/P low
-      EXTMODULE_TIMER->EGR = 1; // Restart
-      EXTMODULE_TIMER->CCMR1 = TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0; // Toggle mode
-
       // send DMA request
-      EXTMODULE_TIMER_DMA_STREAM->CR &= ~DMA_SxCR_EN; // Disable DMA
-      EXTMODULE_TIMER_DMA_STREAM->CR |= EXTMODULE_TIMER_DMA_CHANNEL | DMA_SxCR_DIR_0 | DMA_SxCR_MINC | DMA_SxCR_PSIZE_0 | DMA_SxCR_MSIZE_0 | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
-      EXTMODULE_TIMER_DMA_STREAM->PAR = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
-      EXTMODULE_TIMER_DMA_STREAM->M0AR = CONVERT_PTR_UINT(extmodulePulsesData.dsm2.pulses);
-      EXTMODULE_TIMER_DMA_STREAM->NDTR = extmodulePulsesData.dsm2.ptr - extmodulePulsesData.dsm2.pulses;
-      EXTMODULE_TIMER_DMA_STREAM->CR |= DMA_SxCR_EN | DMA_SxCR_TCIE; // Enable DMA
+      DMA_InitTypeDef DMA_InitStructure;
+      DMA_InitStructure.DMA_Channel = EXTMODULE_TIMER_DMA_CHANNEL;
+
+      DMA_InitStructure.DMA_PeripheralBaseAddr = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
+      DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
+
+      // start address
+      DMA_InitStructure.DMA_Memory0BaseAddr =
+        CONVERT_PTR_UINT(extmodulePulsesData.dsm2.pulses);
+
+      // transfer size
+      DMA_InitStructure.DMA_BufferSize =
+        extmodulePulsesData.dsm2.ptr - extmodulePulsesData.dsm2.pulses;
+
+      DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+      DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+      DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+      DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+      DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+      DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
+      DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;
+      DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+      DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+      
+      DMA_Init(EXTMODULE_TIMER_DMA_STREAM, &DMA_InitStructure);
+
+      // EXTMODULE_TIMER_DMA_STREAM->CR |= EXTMODULE_TIMER_DMA_CHANNEL | DMA_SxCR_DIR_0 | DMA_SxCR_MINC | DMA_SxCR_PSIZE_0 | DMA_SxCR_MSIZE_0 | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
+      // EXTMODULE_TIMER_DMA_STREAM->PAR = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
+      // EXTMODULE_TIMER_DMA_STREAM->M0AR = CONVERT_PTR_UINT(extmodulePulsesData.dsm2.pulses);
+      // EXTMODULE_TIMER_DMA_STREAM->NDTR = extmodulePulsesData.dsm2.ptr - extmodulePulsesData.dsm2.pulses;
+      // EXTMODULE_TIMER_DMA_STREAM->CR |= DMA_SxCR_EN | DMA_SxCR_TCIE; // Enable DMA
+
+      // start DMA request
+      DMA_ITConfig(EXTMODULE_TIMER_DMA_STREAM, DMA_IT_TC, ENABLE);
+      DMA_Cmd(EXTMODULE_TIMER_DMA_STREAM, ENABLE);
 
       // re-init timer
-      EXTMODULE_TIMER->EGR = 1;
-      EXTMODULE_TIMER->CR1 |= TIM_CR1_CEN;
+      EXTMODULE_TIMER->EGR = TIM_PSCReloadMode_Immediate;
+      TIM_Cmd(EXTMODULE_TIMER, ENABLE);
+      // EXTMODULE_TIMER->EGR = 1;
+      // EXTMODULE_TIMER->CR1 |= TIM_CR1_CEN;
       break;
+    }
 #endif
 
 #if defined(CROSSFIRE)
