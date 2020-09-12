@@ -386,13 +386,9 @@ void extmoduleSendNextFrame()
       if (EXTMODULE_TIMER_DMA_STREAM->CR & DMA_SxCR_EN)
         return;
 
-      // disable DMA
+      // disable DMA & timer
       DMA_DeInit(EXTMODULE_TIMER_DMA_STREAM);
-      // EXTMODULE_TIMER_DMA_STREAM->CR &= ~DMA_SxCR_EN;
-      
-      // disable timer
       TIM_Cmd(EXTMODULE_TIMER, DISABLE);
-      // EXTMODULE_TIMER->CR1 &= ~TIM_CR1_CEN;
 
       if (PROTOCOL_CHANNELS_SBUS == moduleState[EXTERNAL_MODULE].protocol) {
         EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE
@@ -427,12 +423,6 @@ void extmoduleSendNextFrame()
       
       DMA_Init(EXTMODULE_TIMER_DMA_STREAM, &DMA_InitStructure);
 
-      // EXTMODULE_TIMER_DMA_STREAM->CR |= EXTMODULE_TIMER_DMA_CHANNEL | DMA_SxCR_DIR_0 | DMA_SxCR_MINC | DMA_SxCR_PSIZE_0 | DMA_SxCR_MSIZE_0 | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
-      // EXTMODULE_TIMER_DMA_STREAM->PAR = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
-      // EXTMODULE_TIMER_DMA_STREAM->M0AR = CONVERT_PTR_UINT(extmodulePulsesData.dsm2.pulses);
-      // EXTMODULE_TIMER_DMA_STREAM->NDTR = extmodulePulsesData.dsm2.ptr - extmodulePulsesData.dsm2.pulses;
-      // EXTMODULE_TIMER_DMA_STREAM->CR |= DMA_SxCR_EN | DMA_SxCR_TCIE; // Enable DMA
-
       // start DMA request
       DMA_ITConfig(EXTMODULE_TIMER_DMA_STREAM, DMA_IT_TC, ENABLE);
       DMA_Cmd(EXTMODULE_TIMER_DMA_STREAM, ENABLE);
@@ -440,8 +430,6 @@ void extmoduleSendNextFrame()
       // re-init timer
       EXTMODULE_TIMER->EGR = TIM_PSCReloadMode_Immediate;
       TIM_Cmd(EXTMODULE_TIMER, ENABLE);
-      // EXTMODULE_TIMER->EGR = 1;
-      // EXTMODULE_TIMER->CR1 |= TIM_CR1_CEN;
       break;
     }
 #endif
