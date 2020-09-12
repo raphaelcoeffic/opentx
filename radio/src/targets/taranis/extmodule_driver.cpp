@@ -111,7 +111,8 @@ void extmoduleSerialStart()
   TIM_OCInitTypeDef TIM_OCInitStruct;
   TIM_OCStructInit(&TIM_OCInitStruct);
 
-  TIM_OCInitStruct.TIM_Pulse = 0;
+  TIM_OCInitStruct.TIM_Pulse = 0; // whatever, will be replaced by DMA data...
+  TIM_OCInitStruct.TIM_OCMode = TIM_ForcedAction_InActive;
 
   // depends on EXTMODULE_TIMER_OUTPUT_ENABLE & EXTMODULE_TIMER_OUTPUT_POLARITY:
   //
@@ -122,7 +123,13 @@ void extmoduleSerialStart()
 
   TIM_OC1Init(EXTMODULE_TIMER, &TIM_OCInitStruct);
 
-  EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
+  if (PROTOCOL_CHANNELS_SBUS == moduleState[EXTERNAL_MODULE].protocol) {
+    EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0); // reverse polarity for Sbus if needed
+  }
+  else {
+    EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
+  }
+
   TIM_SelectOCxM(EXTMODULE_TIMER, TIM_Channel_1, TIM_OCMode_Toggle);
 
   TIM_CtrlPWMOutputs(EXTMODULE_TIMER, ENABLE);
@@ -385,6 +392,12 @@ void extmoduleSendNextFrame()
       if (PROTOCOL_CHANNELS_SBUS == moduleState[EXTERNAL_MODULE].protocol) {
         EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0); // reverse polarity for Sbus if needed
       }
+
+      // force specific output before DMA toggling
+      //EXTMODULE_TIMER->CCMR1 = TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC1M_0; // Force O/P high
+      EXTMODULE_TIMER->CCMR1 = TIM_CCMR1_OC1M_2;                    // Force O/P low
+      EXTMODULE_TIMER->EGR = 1; // Restart
+      EXTMODULE_TIMER->CCMR1 = TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_0; // Toggle mode
 
       // send DMA request
       EXTMODULE_TIMER_DMA_STREAM->CR &= ~DMA_SxCR_EN; // Disable DMA
