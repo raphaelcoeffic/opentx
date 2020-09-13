@@ -29,6 +29,48 @@ InternalModulePulsesData intmodulePulsesData __DMA;
 ExternalModulePulsesData extmodulePulsesData __DMA;
 TrainerPulsesData trainerPulsesData __DMA;
 
+const uint16_t* extmoduleGetPulsesData(uint8_t protocol)
+{
+  switch(protocol){
+
+    case PROTOCOL_CHANNELS_SBUS:
+    case PROTOCOL_CHANNELS_DSM2_LP45:
+    case PROTOCOL_CHANNELS_DSM2_DSM2:
+    case PROTOCOL_CHANNELS_DSM2_DSMX:
+    case PROTOCOL_CHANNELS_MULTIMODULE:
+      return extmodulePulsesData.dsm2.pulses;
+
+    case PROTOCOL_CHANNELS_AFHDS3:
+      return extmodulePulsesData.afhds3.getData();
+
+    case PROTOCOL_CHANNELS_PXX1_PULSES:
+      return extmodulePulsesData.pxx.getData();
+  }
+
+  return NULL;
+}
+
+uint16_t extmoduleGetPulsesSize(uint8_t protocol)
+{
+  switch(protocol){
+
+    case PROTOCOL_CHANNELS_SBUS:
+    case PROTOCOL_CHANNELS_DSM2_LP45:
+    case PROTOCOL_CHANNELS_DSM2_DSM2:
+    case PROTOCOL_CHANNELS_DSM2_DSMX:
+    case PROTOCOL_CHANNELS_MULTIMODULE:
+      return extmodulePulsesData.dsm2.ptr - extmodulePulsesData.dsm2.pulses;
+
+    case PROTOCOL_CHANNELS_AFHDS3:
+      return extmodulePulsesData.afhds3.getSize();
+
+    case PROTOCOL_CHANNELS_PXX1_PULSES:
+      return extmodulePulsesData.pxx.getSize();
+  }
+
+  return 0;
+}
+
 //use only for PXX
 void ModuleState::startBind(BindInformation * destination, ModuleCallback bindCallback)
 {

@@ -301,6 +301,9 @@ union ExternalModulePulsesData {
  * sizeof(ModulePulsesData). __ALIGNED is required for sizeof(ModulePulsesData) to be a multiple of the alignment.
  */
 
+const uint16_t* extmoduleGetPulsesData(uint8_t protocol);
+uint16_t extmoduleGetPulsesSize(uint8_t protocol);
+
 
 extern InternalModulePulsesData intmodulePulsesData;
 extern ExternalModulePulsesData extmodulePulsesData;

@@ -21,6 +21,48 @@
 #include "opentx.h"
 #include "pulses_driver.h"
 
+static const PulsesTimerConfig toggleTimerConfig = {
+  .gpio          = EXTMODULE_TX_GPIO,
+  .pinSource     = EXTMODULE_TX_GPIO_PinSource,
+  .timer         = EXTMODULE_TIMER,
+  .channel       = TIM_Channel_1,
+  .prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ),
+  .outputMode    = TIM_OCMode_Toggle,
+  .pulse         = 0,
+  .dmaStream     = EXTMODULE_TIMER_DMA_STREAM,
+  .dmaStreamIRQn = EXTMODULE_TIMER_DMA_STREAM_IRQn,
+  .dmaChannel    = EXTMODULE_TIMER_DMA_CHANNEL
+};
+
+static const PulsesTimerConfig pxxPwmTimerConfig = {
+  .gpio          = EXTMODULE_TX_GPIO,
+  .pinSource     = EXTMODULE_TX_GPIO_PinSource,
+  .timer         = EXTMODULE_TIMER,
+  .channel       = TIM_Channel_1,
+  .prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ),
+  .outputMode    = TIM_OCMode_PWM1,
+  .pulse         = 18, // 9us, first wave part for PWM
+  .dmaStream     = EXTMODULE_TIMER_DMA_STREAM,
+  .dmaStreamIRQn = EXTMODULE_TIMER_DMA_STREAM_IRQn,
+  .dmaChannel    = EXTMODULE_TIMER_DMA_CHANNEL
+};
+
+static uint16_t extmoduleGetPolarity(uint8_t protocol)
+{
+  uint16_t polarity = 0;
+
+  if (PROTOCOL_CHANNELS_SBUS == protocol) {
+    polarity = EXTMODULE_TIMER_OUTPUT_ENABLE
+      // reverse polarity for Sbus if needed:
+      | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0);
+  }
+  else {
+    polarity = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
+  }
+
+  return polarity;
+}
+
 void extmoduleStop()
 {
   NVIC_DisableIRQ(EXTMODULE_TIMER_DMA_STREAM_IRQn);
@@ -86,29 +128,8 @@ void extmodulePpmStart()
 void extmoduleSerialStart()
 {
   EXTERNAL_MODULE_ON();
-
-  PulsesTimerConfig timerConfig;
-  timerConfig.gpio          = EXTMODULE_TX_GPIO;
-  timerConfig.pinSource     = EXTMODULE_TX_GPIO_PinSource;
-  timerConfig.timer         = EXTMODULE_TIMER;
-  timerConfig.channel       = TIM_Channel_1;
-  timerConfig.prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ);
-  timerConfig.outputMode    = TIM_OCMode_Toggle;
-  timerConfig.pulse         = 0;
-  timerConfig.dmaStream     = EXTMODULE_TIMER_DMA_STREAM;
-  timerConfig.dmaStreamIRQn = EXTMODULE_TIMER_DMA_STREAM_IRQn;
-
-  uint16_t polarity = 0;
-  if (PROTOCOL_CHANNELS_SBUS == moduleState[EXTERNAL_MODULE].protocol) {
-    polarity = EXTMODULE_TIMER_OUTPUT_ENABLE
-       // reverse polarity for Sbus if needed
-      | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0);
-  }
-  else {
-    polarity = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
-  }
-
-  pulsesTimerConfig(timerConfig, polarity);
+  pulsesTimerConfig(toggleTimerConfig,
+                    extmoduleGetPolarity(moduleState[EXTERNAL_MODULE].protocol));
 }
 
 #if defined(EXTMODULE_USART)
@@ -197,20 +218,7 @@ extern "C" void EXTMODULE_USART_IRQHandler(void)
 void extmodulePxx1PulsesStart()
 {
   EXTERNAL_MODULE_ON();
-
-  PulsesTimerConfig timerConfig;
-  timerConfig.gpio          = EXTMODULE_TX_GPIO;
-  timerConfig.pinSource     = EXTMODULE_TX_GPIO_PinSource;
-  timerConfig.timer         = EXTMODULE_TIMER;
-  timerConfig.channel       = TIM_Channel_1;
-  timerConfig.prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ);
-  timerConfig.outputMode    = TIM_OCMode_PWM1;
-  timerConfig.pulse         = 18; // 9us, first wave part for PWM
-  timerConfig.dmaStream     = EXTMODULE_TIMER_DMA_STREAM;
-  timerConfig.dmaStreamIRQn = EXTMODULE_TIMER_DMA_STREAM_IRQn;
-
-  uint16_t polarity = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
-  pulsesTimerConfig(timerConfig, polarity);
+  pulsesTimerConfig(pxxPwmTimerConfig,extmoduleGetPolarity(PROTOCOL_CHANNELS_PXX1_PULSES));
 }
 #endif
 
@@ -237,45 +245,12 @@ void extmoduleSendNextFrame()
       break;
 
 #if defined(PXX1)
-    case PROTOCOL_CHANNELS_PXX1_PULSES: {
-
-      if (EXTMODULE_TIMER_DMA_STREAM->CR & DMA_SxCR_EN)
-        return;
-
-      // disable timer & DMA
-      DMA_DeInit(EXTMODULE_TIMER_DMA_STREAM);
-      TIM_Cmd(EXTMODULE_TIMER, DISABLE);
-
-      DMA_InitTypeDef DMA_InitStructure;
-      DMA_InitStructure.DMA_Channel = EXTMODULE_TIMER_DMA_CHANNEL;
-
-      DMA_InitStructure.DMA_PeripheralBaseAddr = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
-      DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
-      DMA_InitStructure.DMA_Memory0BaseAddr =
-        CONVERT_PTR_UINT(extmodulePulsesData.pxx.getData());
-      DMA_InitStructure.DMA_BufferSize = extmodulePulsesData.pxx.getSize();
-
-      DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-      DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
-      DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-      DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
-      DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
-      DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
-      DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;
-      DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
-      DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
-      
-      DMA_Init(EXTMODULE_TIMER_DMA_STREAM, &DMA_InitStructure);
-
-      // start DMA request
-      DMA_ITConfig(EXTMODULE_TIMER_DMA_STREAM, DMA_IT_TC, ENABLE);
-      DMA_Cmd(EXTMODULE_TIMER_DMA_STREAM, ENABLE);
-
-      // re-init timer
-      EXTMODULE_TIMER->EGR = TIM_PSCReloadMode_Immediate;
-      TIM_Cmd(EXTMODULE_TIMER, ENABLE);
+    case PROTOCOL_CHANNELS_PXX1_PULSES:
+      pulsesTimerSendFrame(pxxPwmTimerConfig,
+                           extmoduleGetPolarity(PROTOCOL_CHANNELS_PXX1_PULSES),
+                           extmoduleGetPulsesData(PROTOCOL_CHANNELS_PXX1_PULSES),
+                           extmoduleGetPulsesSize(PROTOCOL_CHANNELS_PXX1_PULSES));
       break;
-    }
 #endif
 
 #if defined(PXX1) && defined(HARDWARE_EXTERNAL_MODULE_SIZE_SML)
@@ -287,89 +262,33 @@ void extmoduleSendNextFrame()
 #if defined(PXX2)
     case PROTOCOL_CHANNELS_PXX2_HIGHSPEED:
     case PROTOCOL_CHANNELS_PXX2_LOWSPEED:
-      extmoduleSendBuffer(extmodulePulsesData.pxx2.getData(), extmodulePulsesData.pxx2.getSize());
+      extmoduleSendBuffer(extmodulePulsesData.pxx2.getData(),
+                          extmodulePulsesData.pxx2.getSize());
       break;
 #endif
-#if defined(AFHDS3)
+#if defined(AFHDS3) && defined(EXTMODULE_USART) && defined(EXTMODULE_TX_INVERT_GPIO)
     case PROTOCOL_CHANNELS_AFHDS3:
-    {
-#if defined(EXTMODULE_USART) && defined(EXTMODULE_TX_INVERT_GPIO)
-      extmoduleSendBuffer(extmodulePulsesData.afhds3.getData(), extmodulePulsesData.afhds3.getSize());
-#else
-      if (EXTMODULE_TIMER_DMA_STREAM->CR & DMA_SxCR_EN)
-        return;
-
-      const uint16_t* dataPtr = extmodulePulsesData.afhds3.getData();
-      uint32_t dataSize = extmodulePulsesData.afhds3.getSize();
-      EXTMODULE_TIMER_DMA_STREAM->CR &= ~DMA_SxCR_EN; // Disable DMA
-      EXTMODULE_TIMER_DMA_STREAM->CR |= EXTMODULE_TIMER_DMA_CHANNEL | DMA_SxCR_DIR_0 | DMA_SxCR_MINC | DMA_SxCR_PSIZE_0 | DMA_SxCR_MSIZE_0 | DMA_SxCR_PL_0 | DMA_SxCR_PL_1;
-      EXTMODULE_TIMER_DMA_STREAM->PAR = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
-      EXTMODULE_TIMER_DMA_STREAM->M0AR = CONVERT_PTR_UINT(dataPtr);
-      EXTMODULE_TIMER_DMA_STREAM->NDTR = dataSize;
-      EXTMODULE_TIMER_DMA_STREAM->CR |= DMA_SxCR_EN | DMA_SxCR_TCIE; // Enable DMA
-
-      // re-init timer
-      EXTMODULE_TIMER->EGR = TIM_PSCReloadMode_Immediate;
-      TIM_Cmd(EXTMODULE_TIMER, ENABLE);
+      extmoduleSendBuffer(extmodulePulsesData.afhds3.getData(),
+                          extmodulePulsesData.afhds3.getSize());
+      break;
 #endif
-    }
-    break;
-#endif
-#if defined(SBUS) || defined(DSM2) || defined(MULTIMODULE)
+#if defined(SBUS) || defined(DSM2) || defined(MULTIMODULE) || defined(AFHDS3)
     case PROTOCOL_CHANNELS_SBUS:
-      // no break
     case PROTOCOL_CHANNELS_DSM2_LP45:
     case PROTOCOL_CHANNELS_DSM2_DSM2:
     case PROTOCOL_CHANNELS_DSM2_DSMX:
-    case PROTOCOL_CHANNELS_MULTIMODULE: {
+    case PROTOCOL_CHANNELS_MULTIMODULE:
 
-      if (EXTMODULE_TIMER_DMA_STREAM->CR & DMA_SxCR_EN)
-        return;
+#if !defined(EXTMODULE_USART) || !defined(EXTMODULE_TX_INVERT_GPIO)
+    case PROTOCOL_CHANNELS_AFHDS3:
+#endif
 
-      // disable DMA & timer
-      DMA_DeInit(EXTMODULE_TIMER_DMA_STREAM);
-      TIM_Cmd(EXTMODULE_TIMER, DISABLE);
-
-      if (PROTOCOL_CHANNELS_SBUS == moduleState[EXTERNAL_MODULE].protocol) {
-        EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE
-          // reverse polarity for Sbus if needed:
-          | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0);
-      }
-
-      // send DMA request
-      DMA_InitTypeDef DMA_InitStructure;
-      DMA_InitStructure.DMA_Channel = EXTMODULE_TIMER_DMA_CHANNEL;
-
-      DMA_InitStructure.DMA_PeripheralBaseAddr = CONVERT_PTR_UINT(&EXTMODULE_TIMER->ARR);
-      DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
-
-      // start address
-      DMA_InitStructure.DMA_Memory0BaseAddr =
-        CONVERT_PTR_UINT(extmodulePulsesData.dsm2.pulses);
-
-      // transfer size
-      DMA_InitStructure.DMA_BufferSize =
-        extmodulePulsesData.dsm2.ptr - extmodulePulsesData.dsm2.pulses;
-
-      DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
-      DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
-      DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-      DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
-      DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
-      DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
-      DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;
-      DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
-      DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
-      
-      DMA_Init(EXTMODULE_TIMER_DMA_STREAM, &DMA_InitStructure);
-
-      // start DMA request
-      DMA_ITConfig(EXTMODULE_TIMER_DMA_STREAM, DMA_IT_TC, ENABLE);
-      DMA_Cmd(EXTMODULE_TIMER_DMA_STREAM, ENABLE);
-
-      // re-init timer
-      EXTMODULE_TIMER->EGR = TIM_PSCReloadMode_Immediate;
-      TIM_Cmd(EXTMODULE_TIMER, ENABLE);
+    {
+      uint8_t proto = moduleState[EXTERNAL_MODULE].protocol;
+      pulsesTimerSendFrame(toggleTimerConfig,
+                           extmoduleGetPolarity(proto),
+                           extmoduleGetPulsesData(proto),
+                           extmoduleGetPulsesSize(proto));
       break;
     }
 #endif
@@ -387,7 +306,7 @@ void extmoduleSendNextFrame()
 #endif
 
     default:
-      EXTMODULE_TIMER->DIER |= TIM_DIER_CC2IE;
+      //EXTMODULE_TIMER->DIER |= TIM_DIER_CC2IE; // rco: what is this ????
       break;
   }
 }
