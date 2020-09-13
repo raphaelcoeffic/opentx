@@ -25,11 +25,7 @@ static const PulsesTimerConfig toggleTimerConfig = {
   .gpio          = EXTMODULE_TX_GPIO,
   .pinSource     = EXTMODULE_TX_GPIO_PinSource,
   .timer         = EXTMODULE_TIMER,
-#if defined(PCBX10) || PCBREV >= 13
-  .channel       = TIM_Channel_3,
-#else
-  .channel       = TIM_Channel_1,
-#endif
+  .channel       = EXTMODULE_TIMER_CHANNEL,
   .prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ),
   .outputMode    = TIM_OCMode_Toggle,
   .pulse         = 0,
@@ -42,11 +38,7 @@ static const PulsesTimerConfig pxxPwmTimerConfig = {
   .gpio          = EXTMODULE_TX_GPIO,
   .pinSource     = EXTMODULE_TX_GPIO_PinSource,
   .timer         = EXTMODULE_TIMER,
-#if defined(PCBX10) || PCBREV >= 13
-  .channel       = TIM_Channel_3,
-#else
-  .channel       = TIM_Channel_1,
-#endif
+  .channel       = EXTMODULE_TIMER_CHANNEL,
   .prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ),
   .outputMode    = TIM_OCMode_PWM1,
   .pulse         = 18, // 9us, first wave part for PWM
@@ -63,25 +55,15 @@ static uint16_t extmoduleGetPolarity(uint8_t protocol)
 
   case PROTOCOL_CHANNELS_PXX1_PULSES:
 
-#if defined(PCBX10) || PCBREV >= 13
-    polarity = TIM_CCER_CC3E | TIM_CCER_CC3NE | TIM_CCER_CC3P | TIM_CCER_CC3NP;
-#else
-    polarity = TIM_CCER_CC1E | TIM_CCER_CC1P | TIM_CCER_CC1NE | TIM_CCER_CC1NP;
-#endif
+    polarity = TIM_OutputState_Enable | TIM_OutputNState_Enable
+      | TIM_OCPolarity_Low | TIM_OCNPolarity_Low;
     break;
 
     
   case PROTOCOL_CHANNELS_SBUS:
 
-#if defined(PCBX10) || PCBREV >= 13
-    polarity = TIM_CCER_CC3E
-      // reverse polarity for Sbus if needed
-      | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? TIM_CCER_CC3P : 0);
-#else
-    polarity = TIM_CCER_CC1E
-      // reverse polarity for Sbus if needed
-      | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? TIM_CCER_CC1P : 0);
-#endif
+    polarity = TIM_OutputState_Enable
+      | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? TIM_OCPolarity_Low : TIM_OCPolarity_High);
     break;
 
     
@@ -91,11 +73,7 @@ static uint16_t extmoduleGetPolarity(uint8_t protocol)
   case PROTOCOL_CHANNELS_MULTIMODULE:
   case PROTOCOL_CHANNELS_AFHDS3:
 
-#if defined(PCBX10) || PCBREV >= 13
-    polarity = TIM_CCER_CC3E | TIM_CCER_CC3P;
-#else
-    polarity = TIM_CCER_CC1E | TIM_CCER_CC1P;
-#endif
+    polarity = TIM_OutputState_Enable | TIM_OCPolarity_Low;
     break;
   }
 
@@ -166,7 +144,7 @@ void extmodulePpmStart()
   EXTMODULE_TIMER->CCMR1 = TIM_CCMR1_OC1M_1 | TIM_CCMR1_OC1M_2 | TIM_CCMR1_OC2PE; // PWM mode 1
 #endif
 
-  EXTMODULE_TIMER->ARR = 45000;
+  EXTMODULE_TIMER->ARR = 45000; // 22.5ms default period....
   EXTMODULE_TIMER->CCR2 = 40000; // The first frame will be sent in 20ms
   EXTMODULE_TIMER->SR &= ~TIM_SR_CC2IF; // Clear flag
   EXTMODULE_TIMER->DIER |= TIM_DIER_UDE | TIM_DIER_CC2IE; // Enable this interrupt
@@ -402,7 +380,6 @@ extern "C" void EXTMODULE_TIMER_DMA_IRQHandler()
   DMA_ClearITPendingBit(EXTMODULE_TIMER_DMA_STREAM, EXTMODULE_TIMER_DMA_FLAG_TC);
 
   switch (moduleState[EXTERNAL_MODULE].protocol) {
-    case PROTOCOL_CHANNELS_PXX1_PULSES:
     case PROTOCOL_CHANNELS_PPM:
       EXTMODULE_TIMER->SR &= ~TIM_SR_CC2IF; // Clear flag
       EXTMODULE_TIMER->DIER |= TIM_DIER_CC2IE; // Enable this interrupt

@@ -87,6 +87,11 @@ const TimerChannelDriver timerChannelDriver[4] = {
   { TIM_OC4Init, TIM_OC4PreloadConfig }
 };
 
+static uint16_t pulsesTimerPolarityCCER(uint16_t channel, uint16_t polarity)
+{
+  return polarity << channel;
+}
+
 static void pulsesTimerInitOC(const PulsesTimerConfig& timerConfig, uint16_t polarity)
 {
   TIM_OCInitTypeDef TIM_OCInitStruct;
@@ -100,7 +105,7 @@ static void pulsesTimerInitOC(const PulsesTimerConfig& timerConfig, uint16_t pol
     timerChannelDriver[ch_idx].OCxInit(timerConfig.timer, &TIM_OCInitStruct);
   }
 
-  timerConfig.timer->CCER = polarity;
+  timerConfig.timer->CCER = pulsesTimerPolarityCCER(timerConfig.channel, polarity);
   TIM_SelectOCxM(timerConfig.timer, timerConfig.channel, timerConfig.outputMode);
 
   if ((timerConfig.outputMode == TIM_OCMode_PWM1)
@@ -142,7 +147,7 @@ void pulsesTimerSendFrame(const PulsesTimerConfig& timerConfig, uint16_t polarit
   DMA_DeInit(timerConfig.dmaStream);
   TIM_Cmd(timerConfig.timer, DISABLE);
 
-  timerConfig.timer->CCER = polarity;
+  timerConfig.timer->CCER = pulsesTimerPolarityCCER(timerConfig.channel, polarity);
 
   // send DMA request
   DMA_InitTypeDef DMA_InitStructure;

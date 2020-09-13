@@ -812,6 +812,7 @@
   #define EXTMODULE_USART_TX_DMA_STREAM    DMA1_Stream3
   #define EXTMODULE_USART_RX_DMA_CHANNEL   DMA_Channel_4
   #define EXTMODULE_USART_RX_DMA_STREAM    DMA1_Stream1
+  #define EXTMODULE_TIMER_CHANNEL          TIM_Channel_3
 #elif defined(PCBX10) || PCBREV >= 13
   #define EXTMODULE_RCC_AHB1Periph         (RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOB | RCC_AHB1Periph_DMA2)
   #define EXTMODULE_RCC_APB1Periph         0
@@ -830,6 +831,7 @@
   #define EXTMODULE_TIMER_DMA_STREAM_IRQn  DMA2_Stream5_IRQn
   #define EXTMODULE_TIMER_DMA_IRQHandler   DMA2_Stream5_IRQHandler
   #define EXTMODULE_TIMER_DMA_FLAG_TC      DMA_IT_TCIF5
+  #define EXTMODULE_TIMER_CHANNEL          TIM_Channel_3
 #else
   #define EXTMODULE_RCC_AHB1Periph         (RCC_AHB1Periph_GPIOA | RCC_AHB1Periph_GPIOB | RCC_AHB1Periph_DMA1)
   #define EXTMODULE_RCC_APB1Periph         RCC_APB1Periph_TIM2
@@ -849,6 +851,7 @@
   #define EXTMODULE_TIMER_DMA_STREAM_IRQn  DMA1_Stream7_IRQn
   #define EXTMODULE_TIMER_DMA_IRQHandler   DMA1_Stream7_IRQHandler
   #define EXTMODULE_TIMER_DMA_FLAG_TC      DMA_IT_TCIF7
+  #define EXTMODULE_TIMER_CHANNEL          TIM_Channel_1
 #endif
 
 // Heartbeat
