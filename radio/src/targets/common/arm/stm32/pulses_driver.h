@@ -44,8 +44,12 @@ struct PulsesTimerConfig
 
     DMA_Stream_TypeDef* dmaStream;
     IRQn_Type           dmaStreamIRQn;
+    uint32_t            dmaChannel;
 };
 
 void pulsesTimerConfig(const PulsesTimerConfig& timerConfig, uint16_t polarity);
+
+void pulsesTimerSendFrame(const PulsesTimerConfig& timerConfig, uint16_t polarity,
+                          const uint16_t* frameData, uint32_t frameBytes);
 
 #endif

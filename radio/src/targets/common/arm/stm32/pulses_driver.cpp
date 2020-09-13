@@ -131,3 +131,48 @@ void pulsesTimerConfig(const PulsesTimerConfig& timerConfig, uint16_t polarity)
   NVIC_EnableIRQ(timerConfig.dmaStreamIRQn);
   NVIC_SetPriority(timerConfig.dmaStreamIRQn, PULSES_TIMER_DMA_IRQ_PRIO);
 }
+
+void pulsesTimerSendFrame(const PulsesTimerConfig& timerConfig, uint16_t polarity,
+                          const uint16_t* frameData, uint32_t frameBytes)
+{
+  if (timerConfig.dmaStream->CR & DMA_SxCR_EN)
+    return;
+
+  // disable DMA & timer
+  DMA_DeInit(timerConfig.dmaStream);
+  TIM_Cmd(timerConfig.timer, DISABLE);
+
+  timerConfig.timer->CCER = polarity;
+
+  // send DMA request
+  DMA_InitTypeDef DMA_InitStructure;
+  DMA_InitStructure.DMA_Channel = timerConfig.dmaChannel;
+  DMA_InitStructure.DMA_PeripheralBaseAddr = (uint32_t)(&timerConfig.timer->ARR);
+  DMA_InitStructure.DMA_DIR = DMA_DIR_MemoryToPeripheral;
+
+  // start address
+  DMA_InitStructure.DMA_Memory0BaseAddr = (uint32_t)(frameData);
+
+  // transfer size
+  DMA_InitStructure.DMA_BufferSize = frameBytes;
+
+  DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
+  DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
+  DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+  DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+  DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
+  DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
+  DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;
+  DMA_InitStructure.DMA_MemoryBurst = DMA_MemoryBurst_Single;
+  DMA_InitStructure.DMA_PeripheralBurst = DMA_PeripheralBurst_Single;
+      
+  DMA_Init(timerConfig.dmaStream, &DMA_InitStructure);
+
+  // start DMA request
+  DMA_ITConfig(timerConfig.dmaStream, DMA_IT_TC, ENABLE);
+  DMA_Cmd(timerConfig.dmaStream, ENABLE);
+
+  // re-init timer
+  timerConfig.timer->EGR = TIM_PSCReloadMode_Immediate;
+  TIM_Cmd(timerConfig.timer, ENABLE);
+}
