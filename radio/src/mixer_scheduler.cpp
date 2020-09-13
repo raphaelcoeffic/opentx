@@ -37,14 +37,18 @@ static MixerSchedule mixerSchedules[NUM_MODULES];
 
 uint16_t getMixerSchedulerPeriod()
 {
-  if (mixerSchedules[INTERNAL_MODULE].period) {
-    return mixerSchedules[INTERNAL_MODULE].period;
+  uint16_t p0 = mixerSchedules[INTERNAL_MODULE].period;
+  uint16_t p1 = mixerSchedules[EXTERNAL_MODULE].period;
+
+  // Both modules ON:
+  // -> return the one with the lowest period
+  //
+  if (p0 && p1) {
+    return (p0 < p1) ? p0 : p1;
   }
-  else if (mixerSchedules[EXTERNAL_MODULE].period) {
-    return mixerSchedules[EXTERNAL_MODULE].period;
-  }
-    
-  return MIXER_SCHEDULER_DEFAULT_PERIOD_US;
+
+  // Only one or none: return that one or default period
+  return p0 ? p0 : (p1 ? p1 : MIXER_SCHEDULER_DEFAULT_PERIOD_US);
 }
 
 void mixerSchedulerInit()
