@@ -87,6 +87,12 @@ const TimerChannelDriver timerChannelDriver[4] = {
   { TIM_OC4Init, TIM_OC4PreloadConfig }
 };
 
+// 32-bit (TIM2 and TIM5)
+static int getTimerSize(TIM_TypeDef* timer)
+{
+  return (timer == TIM2 || timer == TIM5) ? 4 : 2;
+}
+
 static uint16_t pulsesTimerPolarityCCER(uint16_t channel, uint16_t polarity)
 {
   return polarity << channel;
@@ -138,7 +144,7 @@ void pulsesTimerConfig(const PulsesTimerConfig& timerConfig, uint16_t polarity)
 }
 
 void pulsesTimerSendFrame(const PulsesTimerConfig& timerConfig, uint16_t polarity,
-                          const uint16_t* frameData, uint32_t frameBytes)
+                          const void* frameData, uint32_t frameBytes)
 {
   if (timerConfig.dmaStream->CR & DMA_SxCR_EN)
     return;
@@ -163,8 +169,17 @@ void pulsesTimerSendFrame(const PulsesTimerConfig& timerConfig, uint16_t polarit
 
   DMA_InitStructure.DMA_PeripheralInc = DMA_PeripheralInc_Disable;
   DMA_InitStructure.DMA_MemoryInc = DMA_MemoryInc_Enable;
-  DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
-  DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+
+  // 32bit timer?
+  if (getTimerSize(timerConfig.timer) == 4) {
+    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_Word;
+    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_Word;
+  }
+  else {
+    DMA_InitStructure.DMA_PeripheralDataSize = DMA_PeripheralDataSize_HalfWord;
+    DMA_InitStructure.DMA_MemoryDataSize = DMA_MemoryDataSize_HalfWord;
+  }
+  
   DMA_InitStructure.DMA_Mode = DMA_Mode_Normal;
   DMA_InitStructure.DMA_Priority = DMA_Priority_VeryHigh;
   DMA_InitStructure.DMA_FIFOMode = DMA_FIFOMode_Disable;

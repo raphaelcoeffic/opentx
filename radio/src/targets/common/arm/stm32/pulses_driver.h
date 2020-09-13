@@ -50,6 +50,6 @@ struct PulsesTimerConfig
 void pulsesTimerConfig(const PulsesTimerConfig& timerConfig, uint16_t polarity);
 
 void pulsesTimerSendFrame(const PulsesTimerConfig& timerConfig, uint16_t polarity,
-                          const uint16_t* frameData, uint32_t frameBytes);
+                          const void* frameData, uint32_t frameBytes);
 
 #endif
