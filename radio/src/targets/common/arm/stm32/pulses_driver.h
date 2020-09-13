@@ -40,11 +40,12 @@ struct PulsesTimerConfig
     uint16_t            channel;
     uint16_t            prescaler;
     uint16_t            outputMode; // OCMode
+    uint16_t            pulse;
 
     DMA_Stream_TypeDef* dmaStream;
     IRQn_Type           dmaStreamIRQn;
 };
 
-void pulsesTimerStart(const PulsesTimerConfig& timerConfig, uint16_t polarity);
+void pulsesTimerConfig(const PulsesTimerConfig& timerConfig, uint16_t polarity);
 
 #endif

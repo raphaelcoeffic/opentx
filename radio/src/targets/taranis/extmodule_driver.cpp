@@ -94,6 +94,7 @@ void extmoduleSerialStart()
   timerConfig.channel       = TIM_Channel_1;
   timerConfig.prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ);
   timerConfig.outputMode    = TIM_OCMode_Toggle;
+  timerConfig.pulse         = 0;
   timerConfig.dmaStream     = EXTMODULE_TIMER_DMA_STREAM;
   timerConfig.dmaStreamIRQn = EXTMODULE_TIMER_DMA_STREAM_IRQn;
 
@@ -107,7 +108,7 @@ void extmoduleSerialStart()
     polarity = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
   }
 
-  pulsesTimerStart(timerConfig, polarity);
+  pulsesTimerConfig(timerConfig, polarity);
 }
 
 #if defined(EXTMODULE_USART)
@@ -197,54 +198,19 @@ void extmodulePxx1PulsesStart()
 {
   EXTERNAL_MODULE_ON();
 
-  // configure output
-  GPIO_PinAFConfig(EXTMODULE_TX_GPIO, EXTMODULE_TX_GPIO_PinSource, EXTMODULE_TIMER_TX_GPIO_AF);
+  PulsesTimerConfig timerConfig;
+  timerConfig.gpio          = EXTMODULE_TX_GPIO;
+  timerConfig.pinSource     = EXTMODULE_TX_GPIO_PinSource;
+  timerConfig.timer         = EXTMODULE_TIMER;
+  timerConfig.channel       = TIM_Channel_1;
+  timerConfig.prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ);
+  timerConfig.outputMode    = TIM_OCMode_PWM1;
+  timerConfig.pulse         = 18; // 9us, first wave part for PWM
+  timerConfig.dmaStream     = EXTMODULE_TIMER_DMA_STREAM;
+  timerConfig.dmaStreamIRQn = EXTMODULE_TIMER_DMA_STREAM_IRQn;
 
-  GPIO_InitTypeDef GPIO_InitStructure;
-  GPIO_InitStructure.GPIO_Pin = EXTMODULE_TX_GPIO_PIN;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(EXTMODULE_TX_GPIO, &GPIO_InitStructure);
-
-  // disable timer
-  TIM_Cmd(EXTMODULE_TIMER, DISABLE);
-
-  TIM_TimeBaseInitTypeDef TIM_TimeBaseStruct;
-  TIM_TimeBaseStructInit(&TIM_TimeBaseStruct);
-
-  TIM_TimeBaseStruct.TIM_Prescaler = EXTMODULE_TIMER_FREQ / 2000000 - 1; // 0.5uS (2Mhz)
-  TIM_TimeBaseStruct.TIM_Period = 40000; // fake value, big enough for a complete cycle
-  TIM_TimeBaseStruct.TIM_CounterMode = TIM_CounterMode_Up;
-  TIM_TimeBaseInit(EXTMODULE_TIMER, &TIM_TimeBaseStruct);
-
-  TIM_OCInitTypeDef TIM_OCInitStruct;
-  TIM_OCStructInit(&TIM_OCInitStruct);
-
-  TIM_OCInitStruct.TIM_Pulse = 18; // 9us
-
-  // depends on EXTMODULE_TIMER_OUTPUT_ENABLE & EXTMODULE_TIMER_OUTPUT_POLARITY:
-  //
-  // TIM_OCInitStruct.TIM_OutputState = TIM_OutputState_Enable;
-  // TIM_OCInitStruct.TIM_OutputNState = TIM_OutputNState_Enable;
-  // TIM_OCInitStruct.TIM_OCPolarity = TIM_OCPolarity_Low;
-  // TIM_OCInitStruct.TIM_OCNPolarity = TIM_OCNPolarity_Low;
-
-  TIM_OC1Init(EXTMODULE_TIMER, &TIM_OCInitStruct);
-
-  EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
-  TIM_SelectOCxM(EXTMODULE_TIMER, TIM_Channel_1, TIM_OCMode_PWM1);
-  TIM_OC1PreloadConfig(EXTMODULE_TIMER, TIM_OCPreload_Enable); // required for PWM
-
-  TIM_CtrlPWMOutputs(EXTMODULE_TIMER, ENABLE);
-  TIM_DMACmd(EXTMODULE_TIMER, TIM_DMA_Update, ENABLE);
-
-  // re-enable timer
-  TIM_Cmd(EXTMODULE_TIMER, ENABLE);
-
-  NVIC_EnableIRQ(EXTMODULE_TIMER_DMA_STREAM_IRQn);
-  NVIC_SetPriority(EXTMODULE_TIMER_DMA_STREAM_IRQn, 7);
+  uint16_t polarity = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
+  pulsesTimerConfig(timerConfig, polarity);
 }
 #endif
 

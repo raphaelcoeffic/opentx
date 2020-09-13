@@ -66,43 +66,55 @@ static void pulsesTimerInitTimeBase(const PulsesTimerConfig& timerConfig)
   TIM_TimeBaseInitTypeDef TIM_TimeBaseStruct;
   TIM_TimeBaseStruct.TIM_Prescaler         = timerConfig.prescaler;
   TIM_TimeBaseStruct.TIM_CounterMode       = TIM_CounterMode_Up;
-  TIM_TimeBaseStruct.TIM_Period            = 0; // 40000; // TODO: fake value
+  TIM_TimeBaseStruct.TIM_Period            = 0;
   TIM_TimeBaseStruct.TIM_ClockDivision     = TIM_CKD_DIV1;
   TIM_TimeBaseStruct.TIM_RepetitionCounter = 0;
   TIM_TimeBaseInit(timerConfig.timer, &TIM_TimeBaseStruct);
 }
+
+typedef void (*TIM_OCxInit)(TIM_TypeDef* TIMx, TIM_OCInitTypeDef* TIM_OCInitStruct);
+typedef void (*TIM_OCxPreloadConfig)(TIM_TypeDef* TIMx, uint16_t TIM_OCPreload);
+
+struct TimerChannelDriver {
+  TIM_OCxInit          OCxInit;
+  TIM_OCxPreloadConfig OCxPreloadConfig;
+};
+
+const TimerChannelDriver timerChannelDriver[4] = {
+  { TIM_OC1Init, TIM_OC1PreloadConfig },
+  { TIM_OC2Init, TIM_OC2PreloadConfig },
+  { TIM_OC3Init, TIM_OC3PreloadConfig },
+  { TIM_OC4Init, TIM_OC4PreloadConfig }
+};
 
 static void pulsesTimerInitOC(const PulsesTimerConfig& timerConfig, uint16_t polarity)
 {
   TIM_OCInitTypeDef TIM_OCInitStruct;
   TIM_OCStructInit(&TIM_OCInitStruct);
 
-  TIM_OCInitStruct.TIM_Pulse = 0; // whatever, will be replaced by DMA data...
-  TIM_OCInitStruct.TIM_OCMode = TIM_ForcedAction_InActive; //Active;
+  TIM_OCInitStruct.TIM_Pulse  = timerConfig.pulse;
+  TIM_OCInitStruct.TIM_OCMode = TIM_ForcedAction_InActive;
 
-  switch (timerConfig.channel){
-  case TIM_Channel_1:
-    TIM_OC1Init(timerConfig.timer, &TIM_OCInitStruct);
-    break;
-  case TIM_Channel_2:
-    TIM_OC2Init(timerConfig.timer, &TIM_OCInitStruct);
-    break;
-  case TIM_Channel_3:
-    TIM_OC3Init(timerConfig.timer, &TIM_OCInitStruct);
-    break;
-  case TIM_Channel_4:
-    TIM_OC4Init(timerConfig.timer, &TIM_OCInitStruct);
-    break;
+  uint8_t ch_idx = timerConfig.channel >> 2; // channels: 0x00, 0x04, 0x08, 0x0C
+  if (IS_TIM_CHANNEL(timerConfig.channel)) {
+    timerChannelDriver[ch_idx].OCxInit(timerConfig.timer, &TIM_OCInitStruct);
   }
 
   timerConfig.timer->CCER = polarity;
   TIM_SelectOCxM(timerConfig.timer, timerConfig.channel, timerConfig.outputMode);
 
+  if ((timerConfig.outputMode == TIM_OCMode_PWM1)
+      && IS_TIM_CHANNEL(timerConfig.channel)) {
+
+    // TIM_OCPreload_Enable is required for PWM mode
+    timerChannelDriver[ch_idx].OCxPreloadConfig(timerConfig.timer, TIM_OCPreload_Enable);
+  }
+
   TIM_CtrlPWMOutputs(timerConfig.timer, ENABLE);
   TIM_DMACmd(timerConfig.timer, TIM_DMA_Update, ENABLE);  
 }
 
-void pulsesTimerStart(const PulsesTimerConfig& timerConfig, uint16_t polarity)
+void pulsesTimerConfig(const PulsesTimerConfig& timerConfig, uint16_t polarity)
 {
   // config pin
   pulsesTimerInitGPIO(timerConfig);
