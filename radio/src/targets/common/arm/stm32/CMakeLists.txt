@@ -40,6 +40,7 @@ set(FIRMWARE_TARGET_SRC
   ../common/arm/stm32/flash_driver.cpp
   ../common/arm/stm32/usbd_storage_msd.cpp
   ../common/arm/stm32/usbd_hid_joystick.c
+  ../common/arm/stm32/pulses_driver.cpp
   )
 
 if(DEBUG OR CLI OR USB_SERIAL)

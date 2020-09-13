@@ -19,7 +19,7 @@
  */
 
 #include "opentx.h"
-#include "board_common.h"
+#include "pulses_driver.h"
 
 void extmoduleStop()
 {
@@ -87,59 +87,27 @@ void extmoduleSerialStart()
 {
   EXTERNAL_MODULE_ON();
 
-  GPIO_PinAFConfig(EXTMODULE_TX_GPIO, EXTMODULE_TX_GPIO_PinSource, EXTMODULE_TIMER_TX_GPIO_AF);
+  PulsesTimerConfig timerConfig;
+  timerConfig.gpio          = EXTMODULE_TX_GPIO;
+  timerConfig.pinSource     = EXTMODULE_TX_GPIO_PinSource;
+  timerConfig.timer         = EXTMODULE_TIMER;
+  timerConfig.channel       = TIM_Channel_1;
+  timerConfig.prescaler     = PULSES_TIMER_PRESCALER(EXTMODULE_TIMER_FREQ);
+  timerConfig.outputMode    = TIM_OCMode_Toggle;
+  timerConfig.dmaStream     = EXTMODULE_TIMER_DMA_STREAM;
+  timerConfig.dmaStreamIRQn = EXTMODULE_TIMER_DMA_STREAM_IRQn;
 
-  GPIO_InitTypeDef GPIO_InitStructure;
-  GPIO_InitStructure.GPIO_Pin = EXTMODULE_TX_GPIO_PIN;
-  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF;
-  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_2MHz;
-  GPIO_InitStructure.GPIO_OType = GPIO_OType_PP;
-  GPIO_InitStructure.GPIO_PuPd = GPIO_PuPd_NOPULL;
-  GPIO_Init(EXTMODULE_TX_GPIO, &GPIO_InitStructure);
-
-  // disable timer
-  TIM_Cmd(EXTMODULE_TIMER, DISABLE);
-
-  TIM_TimeBaseInitTypeDef TIM_TimeBaseStruct;
-  TIM_TimeBaseStructInit(&TIM_TimeBaseStruct);
-
-  TIM_TimeBaseStruct.TIM_Prescaler = EXTMODULE_TIMER_FREQ / 2000000 - 1; // 0.5uS (2Mhz)
-  TIM_TimeBaseStruct.TIM_Period = 40000; // fake value, big enough for a complete cycle
-  TIM_TimeBaseStruct.TIM_CounterMode = TIM_CounterMode_Up;
-  TIM_TimeBaseInit(EXTMODULE_TIMER, &TIM_TimeBaseStruct);
-
-  TIM_OCInitTypeDef TIM_OCInitStruct;
-  TIM_OCStructInit(&TIM_OCInitStruct);
-
-  TIM_OCInitStruct.TIM_Pulse = 0; // whatever, will be replaced by DMA data...
-  TIM_OCInitStruct.TIM_OCMode = TIM_ForcedAction_Active;
-
-  // depends on EXTMODULE_TIMER_OUTPUT_ENABLE & EXTMODULE_TIMER_OUTPUT_POLARITY:
-  //
-  // TIM_OCInitStruct.TIM_OutputState = TIM_OutputState_Enable;
-  // TIM_OCInitStruct.TIM_OutputNState = TIM_OutputNState_Enable;
-  // TIM_OCInitStruct.TIM_OCPolarity = TIM_OCPolarity_Low;
-  // TIM_OCInitStruct.TIM_OCNPolarity = TIM_OCNPolarity_Low;
-
-  TIM_OC1Init(EXTMODULE_TIMER, &TIM_OCInitStruct);
-
+  uint16_t polarity = 0;
   if (PROTOCOL_CHANNELS_SBUS == moduleState[EXTERNAL_MODULE].protocol) {
-    EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0); // reverse polarity for Sbus if needed
+    polarity = EXTMODULE_TIMER_OUTPUT_ENABLE
+       // reverse polarity for Sbus if needed
+      | (GET_SBUS_POLARITY(EXTERNAL_MODULE) ? EXTMODULE_TIMER_OUTPUT_POLARITY : 0);
   }
   else {
-    EXTMODULE_TIMER->CCER = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
+    polarity = EXTMODULE_TIMER_OUTPUT_ENABLE | EXTMODULE_TIMER_OUTPUT_POLARITY;
   }
 
-  TIM_SelectOCxM(EXTMODULE_TIMER, TIM_Channel_1, TIM_OCMode_Toggle);
-
-  TIM_CtrlPWMOutputs(EXTMODULE_TIMER, ENABLE);
-  TIM_DMACmd(EXTMODULE_TIMER, TIM_DMA_Update, ENABLE);
-
-  // re-enable timer
-  TIM_Cmd(EXTMODULE_TIMER, ENABLE);
-
-  NVIC_EnableIRQ(EXTMODULE_TIMER_DMA_STREAM_IRQn);
-  NVIC_SetPriority(EXTMODULE_TIMER_DMA_STREAM_IRQn, 7);
+  pulsesTimerStart(timerConfig, polarity);
 }
 
 #if defined(EXTMODULE_USART)
